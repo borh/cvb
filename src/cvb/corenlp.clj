@@ -16,7 +16,10 @@
      CoreAnnotations$TextAnnotation
      CoreAnnotations$PartOfSpeechAnnotation
      CoreAnnotations$NamedEntityTagAnnotation
-     CoreAnnotations$LemmaAnnotation]))
+     CoreAnnotations$LemmaAnnotation]
+    [edu.stanford.nlp.util
+     CoreMap]
+    [edu.stanford.nlp.ling CoreLabel]))
 
     ;// creates a StanfordCoreNLP object, with POS tagging, lemmatization, NER, parsing, and coreference resolution
     ;Properties props = new Properties();
@@ -82,11 +85,11 @@
   ""
   [pipeline :- StanfordCoreNLP
    text :- s/Str]
-  (let [document (Annotation. text)]
+  (let [document (Annotation. ^String text)]
     (.annotate pipeline document)
     (let [sentences (.get document CoreAnnotations$SentencesAnnotation)]
-      (for [sentence sentences]
-        (for [token (.get sentence CoreAnnotations$TokensAnnotation)]
+      (for [^CoreMap sentence sentences]
+        (for [^CoreLabel token (.get sentence CoreAnnotations$TokensAnnotation)]
           (FullToken.
             (.get token CoreAnnotations$TextAnnotation)
             (.get token CoreAnnotations$LemmaAnnotation)

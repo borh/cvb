@@ -57,11 +57,11 @@
          file-seq
          (filter #(= ".xz" (fs/extension %)))
          (map make-document)                                ;; TODO parallel execution
-         (map (partial file->frequencies pipeline))
+         (pmap (partial file->frequencies pipeline))
          (apply merge-with +))))
 
 (comment
   (use 'criterium.core)
   (corpus->frequencies "corpus/")
-  ;; Bench: ~10s / document
+  ;; time/document: ~9s single-thread, 6s with pmap (for 2 docs)
   (file->frequencies (make-document (io/file "corpus/topic-1-1.edn"))))
