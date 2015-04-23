@@ -2,135 +2,115 @@
   (:require
     [loom.graph :as lg]
     [loom.attr :as la]
-    [clojure.set :as set])
+    [clojure.set :as set]
+    [schema.core :as s])
   (:import
-    [java.io StringReader]
-    [edu.stanford.nlp.process
+    [edu.stanford.nlp.pipeline StanfordCoreNLP Annotation]
+    #_[java.io StringReader]
+    #_[edu.stanford.nlp.process
      DocumentPreprocessor
      PTBTokenizer]
-    [edu.stanford.nlp.ling
+    #_[edu.stanford.nlp.ling
      Word]
-    [edu.stanford.nlp.tagger.maxent
+    #_[edu.stanford.nlp.tagger.maxent
      MaxentTagger]
-    [edu.stanford.nlp.trees
+    #_[edu.stanford.nlp.trees
      LabeledScoredTreeNode
      PennTreebankLanguagePack
      LabeledScoredTreeReaderFactory]
-    [edu.stanford.nlp.parser.lexparser
+    #_[edu.stanford.nlp.parser.lexparser
      LexicalizedParser]
-    [java.util ArrayList]))
-;;;;;;;;;;;;;;;;
-;; Preprocessing
-;;;;;;;;;;;;;;;;
-(defn tokenize [s]
-  "Tokenize an input string into a sequence of Word objects."
-  (.tokenize
-    (PTBTokenizer/newPTBTokenizer
-      (StringReader. s))))
-(defn split-sentences [text]
-  "Split a string into a sequence of sentences, each of which is a sequence of Word objects. (Thus, this method both splits sentences and tokenizes simultaneously.)"
-  (let [rdr (StringReader. text)]
-    (map #(vec (map str %))
-         (iterator-seq
-           (.iterator
-             (DocumentPreprocessor. rdr))))))
-(defmulti word
-          "Attempt to convert a given object into a Word, which is used by many downstream algorithms."
-          type)
-(defmethod word String [s]
-  (Word. s))
-(defmethod word Word [w] w)
-;;;;;;;;;;;;;;;;;;;;;;;;;
-;; Part-of-speech tagging
-;;;;;;;;;;;;;;;;;;;;;;;;;
-(def ^{:private true}
-load-pos-tagger
-  (memoize (fn [] (MaxentTagger. MaxentTagger/DEFAULT_JAR_PATH))))
-(defmulti pos-tag
-          "Tag a sequence of words with their parts of speech, returning a sequence of TaggedWord objects."
-          type)
-(defmethod pos-tag ArrayList [sentence]
-  (.tagSentence (load-pos-tagger) sentence))
-(defmethod pos-tag :default [coll]
-  (.tagSentence (load-pos-tagger)
-                (ArrayList. (map word coll))))
-;;;;;;;;;;
-;; Parsing
-;;;;;;;;;;
-(let [trf (LabeledScoredTreeReaderFactory.)]
-  (defn read-parse-tree [s]
-    "Read a parse tree in PTB format from a string (produced by this or another parser)"
-    (.readTree
-      (.newTreeReader trf
-                      (StringReader. s))))
-  (defn read-scored-parse-tree [s]
-    "Read a parse tree in PTB format with scores from a string."
-    (read-parse-tree
-      (->>
-        (filter #(not (and
-                        (.startsWith % "[")
-                        (.endsWith % "]")))
-                (.split s " "))
-        (interpose " ")
-        (apply str)))))
-(def ^{:private true} load-parser
-  (memoize
-    (fn []
-      (LexicalizedParser/loadModel))))
-(defmulti parse class)
-(defmethod parse String [s]
-  (parse (tokenize s)))
-(defmethod parse :default [coll]
-  [coll]
-  "Use the LexicalizedParser to produce a constituent parse of sequence of strings or CoreNLP Word objects."
-  (.apply (load-parser)
-          (ArrayList.
-            (map word coll))))
-;; Typed Dependencies
-(defrecord DependencyParse [words tags edges])
-(defn roots [dp]
-  (set/difference
-    (set (range (count (:words dp))))
-    (set (map second (:edges dp)))))
-(defn add-roots [dp]
-  "Add explicit ROOT relations to the dependency parse. This will turn it from a polytree to a tree."
-  ;;Note to self: in the new version of the parser, but not the
-  ;;CoreNLP, this is already done. So when incorporating CoreNLP
-  ;;updates be sure this isn't redundant.
-  (update dp :edges concat
-          (for [r (roots dp)]
-            [-1 r :root])))
-(defmulti dependency-parse
-          "Produce a DependencyParse from a sentence, which is a directed graph structure whose nodes are words and edges are typed dependencies (Marneffe et al, 2005) between them."
-          class)
-(let [tlp (PennTreebankLanguagePack.)
-      gsf (.grammaticalStructureFactory tlp)]
-  (defmethod dependency-parse LabeledScoredTreeNode [n]
-    (try
-      (let [ty (.taggedYield n)]
-        (DependencyParse.
-          (vec (map #(.word %) ty))
-          (vec (map #(.tag %) ty))
-          (map (fn [d]
-                 [(dec (.. d gov index))
-                  (dec (.. d dep index))
-                  (keyword
-                    (.. d reln toString))])
-               (.typedDependencies
-                 (.newGrammaticalStructure gsf n)))))
-      (catch RuntimeException _))))
-(defmethod dependency-parse :default [s]
-  (dependency-parse (parse s)))
-(defmulti dependency-graph class)
-(defmethod dependency-graph DependencyParse [dp]
-  "Produce a loom graph from a DependencyParse record."
-  (let [[words tags edges] (map #(% dp) [:words :tags :edges])
-        g (apply lg/digraph (map (partial take 2) edges))]
-    (reduce (fn [g [i t]] (la/add-attr g i :tag t))
-            (reduce (fn [g [i w]] (la/add-attr g i :word w))
-                    (reduce (fn [g [gov dep type]]
-                              (la/add-attr g gov dep :type type)) g edges)
-                    (map-indexed vector words))
-            (map-indexed vector tags))))
-(defmethod dependency-graph :default [x]
-  (dependency-graph (dependency-parse x)))
+    #_[java.util ArrayList Properties]
+    [java.util Properties]
+    [edu.stanford.nlp.ling
+     CoreAnnotations$SentencesAnnotation
+     CoreAnnotations$TokensAnnotation
+     CoreAnnotations$TextAnnotation
+     CoreAnnotations$PartOfSpeechAnnotation
+     CoreAnnotations$NamedEntityTagAnnotation
+     CoreAnnotations$TokensAnnotation
+     CoreAnnotations$TextAnnotation
+     CoreAnnotations$PartOfSpeechAnnotation
+     CoreAnnotations$NamedEntityTagAnnotation
+     CoreAnnotations$LemmaAnnotation]))
+
+(comment
+    ;// creates a StanfordCoreNLP object, with POS tagging, lemmatization, NER, parsing, and coreference resolution
+    ;Properties props = new Properties();
+    ;props.setProperty("annotators", "tokenize, ssplit, pos, lemma, ner, parse, dcoref");
+    ;StanfordCoreNLP pipeline = new StanfordCoreNLP(props);
+    ;
+    ;// read some text in the text variable
+    ;String text = ... // Add your text here!
+    ;
+    ;// create an empty Annotation just with the given text
+    ;Annotation document = new Annotation(text);
+    ;
+    ;// run all Annotators on this text
+    ;pipeline.annotate(document);
+    ;
+    ;// these are all the sentences in this document
+    ;// a CoreMap is essentially a Map that uses class objects as keys and has values with custom types
+    ;List<CoreMap> sentences = document.get(SentencesAnnotation.class);
+    ;
+    ;for(CoreMap sentence: sentences) {
+    ;  // traversing the words in the current sentence
+    ;  // a CoreLabel is a CoreMap with additional token-specific methods
+    ;  for (CoreLabel token: sentence.get(TokensAnnotation.class)) {
+    ;    // this is the text of the token
+    ;    String word = token.get(TextAnnotation.class);
+    ;    // this is the POS tag of the token
+    ;    String pos = token.get(PartOfSpeechAnnotation.class);
+    ;    // this is the NER label of the token
+    ;    String ne = token.get(NamedEntityTagAnnotation.class);
+    ;  }
+    ;
+    ;  // this is the parse tree of the current sentence
+    ;  Tree tree = sentence.get(TreeAnnotation.class);
+    ;
+    ;  // this is the Stanford dependency graph of the current sentence
+    ;  SemanticGraph dependencies = sentence.get(CollapsedCCProcessedDependenciesAnnotation.class);
+    ;}
+    ;
+    ;// This is the coreference link graph
+    ;// Each chain stores a set of mentions that link to each other,
+    ;// along with a method for getting the most representative mention
+    ;// Both sentence and token offsets start at 1!
+    ;Map<Integer, CorefChain> graph =
+    ;  document.get(CorefChainAnnotation.class);
+  )
+
+(s/defrecord Token
+  [word  :- s/Str
+   lemma :- s/Str
+   pos   :- s/Str
+   ne    :- s/Str])
+
+(s/defn create-pipeline :- StanfordCoreNLP
+  [options :- (s/maybe s/Str)]
+  (let [props (Properties.)]
+    (.setProperty props
+                  "annotators"
+                  (if options
+                    options
+                    "tokenize, ssplit, pos, lemma, ner, parse, dcoref"))
+    (StanfordCoreNLP. props)))
+
+(s/defn process :- [[Token]]
+  [pipeline :- StanfordCoreNLP
+   text :- s/Str]
+  (let [document (Annotation. text)]
+    (.annotate pipeline document)
+    (let [sentences (.get document CoreAnnotations$SentencesAnnotation)]
+      (for [sentence sentences]
+        (for [token (.get sentence CoreAnnotations$TokensAnnotation)]
+          (Token.
+            (.get token CoreAnnotations$TextAnnotation)
+            (.get token CoreAnnotations$LemmaAnnotation)
+            (.get token CoreAnnotations$PartOfSpeechAnnotation) ;; http://www.comp.leeds.ac.uk/amalgam/tagsets/upenn.html
+            (.get token CoreAnnotations$NamedEntityTagAnnotation)))))))
+
+(comment
+  (use 'criterium.core)
+  (let [pipeline (create-pipeline nil)]
+    (bench (process pipeline "This is a book. There are many like it, but this one is mine. It is about President Barack Obama."))))

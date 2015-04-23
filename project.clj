@@ -11,7 +11,8 @@
                  [t6/snippets-corenlp "0.1.0-SNAPSHOT"]
                  [t6/snippets-clearnlp "0.1.0-SNAPSHOT"]
 
-                 [edu.stanford.nlp/stanford-corenlp "3.5.1"]
+                 ;;[edu.stanford.nlp/stanford-corenlp "3.5.1"]
+                 [edu.stanford.nlp/stanford-corenlp "3.5.1" :classifier "sources"]
                  [edu.stanford.nlp/stanford-corenlp "3.5.1" :classifier "models"]
                  [cc.artifice/loom "0.1.3"]
 
