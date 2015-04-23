@@ -1,50 +1,67 @@
 (ns cvb.core
-  (:require [t6.snippets.core :as snippets]
-            t6.snippets.nlp.corenlp
-            t6.snippets.nlp.clearnlp
-
-            [schema.core :as s]))
+  (:require [schema.core :as s]
+            [cvb.corenlp :as c]
+            [clojure.edn :as edn]
+            [clojure.java.io :as io]
+            [me.raynes.fs :as fs])
+  (:import [java.io File]
+           [cvb.corenlp FullToken]
+           [edu.stanford.nlp.pipeline StanfordCoreNLP]
+           [org.apache.commons.compress.compressors.xz XZCompressorInputStream]))
 
 (s/set-fn-validation! true)
 
-(comment
-  (def get-sentences (make-sentence-detector "models/en-sent.bin"))
-  (def tokenize (make-tokenizer "models/en-token.bin"))
-  (def pos-tag (make-pos-tagger "models/en-pos-maxent.bin"))
-  (def name-find (make-name-finder "models/en-ner-person.bin"))
-  ;; FIXME en-ner-date.bin  en-ner-location.bin  en-ner-money.bin  en-ner-organization.bin  en-ner-percentage.bin
-  ;;(def location-find (make-location-finder "models/en-ner-location.bin"))
-  )
+(def opt s/optional-key)
+(s/defschema Document
+  {:title                   s/Str
+   :url                     s/Str ;; TODO java.net.URL
+   :text                    s/Str
+   :student-summary         s/Str
 
-;; TODO
+   (opt :original-title)    s/Str
+   (opt :original-url)      s/Str ;; TODO java.net.URL
+   (opt :original-abstract) s/Str
+   (opt :original-text)     s/Str})
 
 (s/defrecord Token
-  [surface :- s/Str
-   pos :- s/Str])
+  [lemma :- s/Str
+   pos   :- s/Str])
 
-;;
+(defn ->minimal-token
+  [t]
+  (Token. (:lemma t) (:pos t)))
 
-;; TODO following should lemmatize tokens; consider frequencies as another step in pipeline
+(s/defn make-document :- Document
+  [f :- File]
+  (with-open
+    [xz-in (-> f
+               io/input-stream
+               XZCompressorInputStream.)]
+    (edn/read-string (slurp xz-in))))
 
-(comment
-  (s/defn text->frequencies-1 :- {[s/Str] s/Int}
-    [text :- s/Str]
-    (let [tokens (mapcat tokenize (get-sentences text))
-          exclude-set (set (concat (name-find tokens)
-                                   #_(mapcat location-find sentences)))]
-      (->> tokens
-           pos-tag
-           (remove (fn [[k _]] (exclude-set k)))
-           frequencies))))
+(s/defn file->frequencies :- {Token s/Int}
+  [pipeline :- StanfordCoreNLP
+   doc :- Document]
+  (->> (:text doc)
+       (c/process pipeline)
+       (flatten)
+       (filter (fn [{:keys [ne]}] (if (= ne "O") true)))
+       (map ->minimal-token)
+       (frequencies)))
 
-(s/defn text->frequencies-2 :- {s/Str s/Int}
-  [text :- s/Str]
-  (->> (snippets/create {:pipeline {:type #_:clearnlp :corenlp}, :text text})
-       :tokens
-       (mapcat (partial map :token))
-       frequencies))
+(s/defn corpus->frequencies :- {Token s/Int}
+  [corpus-dir :- s/Str]
+  (let [pipeline (c/create-pipeline nil)]
+    (->> corpus-dir
+         io/file
+         file-seq
+         (filter #(= ".xz" (fs/extension %)))
+         (map make-document)                                ;; TODO parallel execution
+         (map (partial file->frequencies pipeline))
+         (apply merge-with +))))
 
 (comment
   (use 'criterium.core)
-  (bench (text->frequencies-1 "This is a book. There are many like it, but this one is mine."))
-  (bench (text->frequencies-2 "This is a book. There are many like it, but this one is mine.")))
+  (corpus->frequencies "corpus/")
+  ;; Bench: ~10s / document
+  (file->frequencies (make-document (io/file "corpus/topic-1-1.edn"))))

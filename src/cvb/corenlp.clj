@@ -1,27 +1,11 @@
 (ns cvb.corenlp
   (:require
-    [loom.graph :as lg]
-    [loom.attr :as la]
-    [clojure.set :as set]
     [schema.core :as s])
   (:import
-    [edu.stanford.nlp.pipeline StanfordCoreNLP Annotation]
-    #_[java.io StringReader]
-    #_[edu.stanford.nlp.process
-     DocumentPreprocessor
-     PTBTokenizer]
-    #_[edu.stanford.nlp.ling
-     Word]
-    #_[edu.stanford.nlp.tagger.maxent
-     MaxentTagger]
-    #_[edu.stanford.nlp.trees
-     LabeledScoredTreeNode
-     PennTreebankLanguagePack
-     LabeledScoredTreeReaderFactory]
-    #_[edu.stanford.nlp.parser.lexparser
-     LexicalizedParser]
-    #_[java.util ArrayList Properties]
     [java.util Properties]
+    [edu.stanford.nlp.pipeline
+     StanfordCoreNLP
+     Annotation]
     [edu.stanford.nlp.ling
      CoreAnnotations$SentencesAnnotation
      CoreAnnotations$TokensAnnotation
@@ -34,7 +18,6 @@
      CoreAnnotations$NamedEntityTagAnnotation
      CoreAnnotations$LemmaAnnotation]))
 
-(comment
     ;// creates a StanfordCoreNLP object, with POS tagging, lemmatization, NER, parsing, and coreference resolution
     ;Properties props = new Properties();
     ;props.setProperty("annotators", "tokenize, ssplit, pos, lemma, ner, parse, dcoref");
@@ -78,13 +61,12 @@
     ;// Both sentence and token offsets start at 1!
     ;Map<Integer, CorefChain> graph =
     ;  document.get(CorefChainAnnotation.class);
-  )
 
-(s/defrecord Token
+(s/defrecord FullToken
   [word  :- s/Str
    lemma :- s/Str
    pos   :- s/Str
-   ne    :- s/Str])
+   ne    :- (s/enum "O" "PERSON" "DATE" "DURATION" "NUMBER" "ORGANIZATION" "LOCATION" "PERCENT" "MISC")])
 
 (s/defn create-pipeline :- StanfordCoreNLP
   [options :- (s/maybe s/Str)]
@@ -96,7 +78,8 @@
                     "tokenize, ssplit, pos, lemma, ner, parse, dcoref"))
     (StanfordCoreNLP. props)))
 
-(s/defn process :- [[Token]]
+(s/defn process :- [[FullToken]]
+  ""
   [pipeline :- StanfordCoreNLP
    text :- s/Str]
   (let [document (Annotation. text)]
@@ -104,7 +87,7 @@
     (let [sentences (.get document CoreAnnotations$SentencesAnnotation)]
       (for [sentence sentences]
         (for [token (.get sentence CoreAnnotations$TokensAnnotation)]
-          (Token.
+          (FullToken.
             (.get token CoreAnnotations$TextAnnotation)
             (.get token CoreAnnotations$LemmaAnnotation)
             (.get token CoreAnnotations$PartOfSpeechAnnotation) ;; http://www.comp.leeds.ac.uk/amalgam/tagsets/upenn.html
@@ -113,4 +96,4 @@
 (comment
   (use 'criterium.core)
   (let [pipeline (create-pipeline nil)]
-    (bench (process pipeline "This is a book. There are many like it, but this one is mine. It is about President Barack Obama."))))
+    (bench (process pipeline "This is a book I bought yesterday. There are many like it, but this one is mine. It is about President Barack Obama on that fateful Monday, the 16th of November."))))
