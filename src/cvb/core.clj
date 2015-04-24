@@ -63,5 +63,6 @@
 (comment
   (use 'criterium.core)
   (corpus->frequencies "corpus/")
-  ;; time/document: ~9s single-thread, 6s with pmap (for 2 docs)
+  ;; w/parse+dcoref time/document: ~9s single-thread, 6s with pmap (for 2 docs)
+  ;; w/o parse+dcoref 180ms/document
   (file->frequencies (make-document (io/file "corpus/topic-1-1.edn"))))

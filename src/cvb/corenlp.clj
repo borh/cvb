@@ -78,7 +78,8 @@
                   "annotators"
                   (if options
                     options
-                    "tokenize, ssplit, pos, lemma, ner, parse, dcoref"))
+                    "tokenize, ssplit, pos, lemma, ner"
+                    #_"tokenize, ssplit, pos, lemma, ner, parse, dcoref"))
     (StanfordCoreNLP. props)))
 
 (s/defn process :- [[FullToken]]
