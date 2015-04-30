@@ -1,9 +1,9 @@
 (ns cvb.core
   (:require [schema.core :as s]
-            [cvb.corenlp :as c]
             [clojure.edn :as edn]
             [clojure.java.io :as io]
-            [me.raynes.fs :as fs])
+            [me.raynes.fs :as fs]
+            [cvb.corenlp :as c])
   (:import [java.io File]
            [cvb.corenlp FullToken]
            [edu.stanford.nlp.pipeline StanfordCoreNLP]
@@ -28,8 +28,8 @@
    pos   :- s/Str])
 
 (defn ->minimal-token
-  [t]
-  (Token. (:lemma t) (:pos t)))
+  [{:keys [lemma pos]}]
+  (Token. lemma pos))
 
 (s/defn make-document :- Document
   [f :- File]
@@ -51,10 +51,17 @@
 
 (s/defn corpus->frequencies :- {Token s/Int}
   [corpus-dir :- s/Str]
-  (let [pipeline (c/create-pipeline nil)]
-    (->> corpus-dir
-         io/file
-         file-seq
+  (let [pipeline (c/create-pipeline nil)
+        files (->> corpus-dir io/file file-seq)]
+    (transduce
+      (comp
+        (filter #(= ".xz" (fs/extension %)))
+        (map make-document)
+        (map (partial file->frequencies pipeline)))
+      (partial merge-with +)
+      {}
+      files)
+    #_(->> files
          (filter #(= ".xz" (fs/extension %)))
          (map make-document)                                ;; TODO parallel execution
          (pmap (partial file->frequencies pipeline))
