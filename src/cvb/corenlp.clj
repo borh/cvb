@@ -83,7 +83,8 @@
     (StanfordCoreNLP. props)))
 
 (s/defn process :- [[FullToken]]
-  ""
+  "Given a StanfordCoreNLP pipeline and some text, returns the text parsed into a vector of sentences each containing
+   a vector of tokens."
   [pipeline :- StanfordCoreNLP
    text :- s/Str]
   (let [document (Annotation. ^String text)]
