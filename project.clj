@@ -6,9 +6,12 @@
   :dependencies [[org.clojure/clojure "1.7.0-beta2"]
 
                  [prismatic/schema "0.4.2"]
+                 [prismatic/plumbing "0.4.3"]
                  [me.raynes/fs "1.4.6"]
                  [org.apache.commons/commons-compress "1.9"]
                  [org.tukaani/xz "1.5"]
+
+                 [aysylu/loom "0.5.0"]
 
                  [edu.stanford.nlp/stanford-corenlp "3.5.2"]
                  [edu.stanford.nlp/stanford-corenlp "3.5.2" :classifier "models"]
