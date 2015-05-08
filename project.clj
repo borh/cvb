@@ -10,7 +10,7 @@
                  [org.apache.commons/commons-compress "1.9"]
                  [org.tukaani/xz "1.5"]
 
-                 [edu.stanford.nlp/stanford-corenlp "3.5.1"]
-                 [edu.stanford.nlp/stanford-corenlp "3.5.1" :classifier "models"]
-                 [edu.stanford.nlp/stanford-corenlp "3.5.1" :classifier "sources"]]
+                 [edu.stanford.nlp/stanford-corenlp "3.5.2"]
+                 [edu.stanford.nlp/stanford-corenlp "3.5.2" :classifier "models"]
+                 [edu.stanford.nlp/stanford-corenlp "3.5.2" :classifier "sources"]]
   :main cvb.core)
